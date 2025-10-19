@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account - Cogmatiq</title>
+    <meta name="description" content="Securely manage your Cogmatiq account and subscription. Access advanced AI-powered knowledge base features.">
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#1A2533">
+    <meta name="theme-color" content="#1A2533">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <script>
+        // --- START: Environment Detection ---
+        let apiBaseUrl;
+        // *** Verify/Update these hostnames if yours are different ***
+        const stagingHostname = 'staging.cogmatiq.com'; 
+        const productionHostname = 'cogmatiq.com';      
+        const currentHostname = window.location.hostname;
+
+        if (currentHostname === stagingHostname || currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+          // Use staging API for staging domain or local development
+          apiBaseUrl = 'https://cogmatiq-api-staging-xdw7ikkfbq-uc.a.run.app'; 
+          console.log('Environment: Staging | API:', apiBaseUrl); 
+        } else {
+          // Default to production API for any other hostname (like cogmatiq.com)
+          apiBaseUrl = 'https://cogmatiq-api-6wh3xe6bsa-uc.a.run.app'; 
+          console.log('Environment: Production | API:', apiBaseUrl);
+        }
+        // --- END: Environment Detection ---
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body { font-family: 'Manrope', sans-serif; background-color: #1A2533; color: #E5E7EB; }
+        .accent-text { color: #00B5AD; }
+        .accent-bg { background-color: #00B5AD; }
+        .accent-bg:hover { background-color: #009A94; }
+        .section-padding { padding: 5rem 2rem; }
+        @media (min-width: 768px) { .section-padding { padding: 7rem 3rem; } }
+        .animate-fade-in { animation: fadeIn 1s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .bg-gradient-dark { background: linear-gradient(to bottom, #1A2533, #111827); }
+        .hover-scale { transition: transform 0.3s ease; }
+        .hover-scale:hover { transform: scale(1.05); }
+        .card { background: #1F2A44; border: 1px solid #2D3748; }
+    </style>
+</head>
+<body class="w-full">
+
+    <header class="py-6 px-8 flex justify-between items-center bg-gray-900/70 backdrop-blur-md fixed w-full top-0 z-10 shadow-sm">
+        <a href="/dashboard.html" class="flex items-center gap-3 transition-opacity hover:opacity-90">
+            <svg class="w-8 h-8 accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.4-8.4h-1m-16 0H3m15.55-5.55l-.71-.71M6.16 17.84l-.71-.71m12.39-.71l-.71.71M6.16 6.16l-.71.71M12 5a7 7 0 100 14 7 7 0 000-14z"></path></svg>
+            <span class="text-2xl font-bold text-white">Cogmatiq</span>
+        </a>
+        <div class="flex items-center gap-6">
+            <a href="/dashboard.html" class="text-gray-400 font-medium hover:text-white transition-colors text-sm">Back to Dashboard</a>
+            <button id="logout-button" class="text-gray-400 font-medium hover:text-white transition-colors text-sm">Sign Out</button>
+        </div>
+    </header>
+
+    <main class="section-padding pt-24 bg-gradient-dark animate-fade-in">
+        <div class="max-w-xl mx-auto">
+            <h1 class="text-3xl font-bold mb-6">My Account</h1>
+            <div class="card p-8 rounded-lg space-y-6">
+                <div>
+                    <p class="text-sm font-semibold text-gray-400">Email</p>
+                    <p id="user-email" class="font-semibold text-white">Loading...</p>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-gray-400">Subscription</p>
+                    <p id="sub-status" class="font-semibold">Loading...</p>
+                </div>
+                <div>
+                    <button id="billing-button" class="accent-bg text-white font-semibold py-3 px-5 rounded-md text-sm hover-scale disabled:opacity-50" disabled>
+                        Loading...
+                    </button>
+                    <p id="message" class="mt-4 text-sm text-red-400"></p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const supabaseUrl = 'https://wzekdxvvynpvisbvkiqg.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZWtkeHZ2eW5wdmlzYnZraXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NzA5NzAsImV4cCI6MjA3NjA0Njk3MH0.CGXF6Txv-OATQdaus08GohMHRyytye59hqaD0Q4BOSU'
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
+        
+        const userEmailEl = document.getElementById('user-email');
+        const subStatusEl = document.getElementById('sub-status');
+        const billingButton = document.getElementById('billing-button');
+        const messageEl = document.getElementById('message');
+        const logoutButton = document.getElementById('logout-button');
+
+        let userToken = null;
+
+        async function main() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                userToken = session.access_token;
+                userEmailEl.textContent = session.user.email;
+                fetchSubscriptionStatus();
+            } else {
+                window.location.href = '/login.html';
+            }
+        }
+        main();
+
+        async function fetchSubscriptionStatus() {
+            // *** Use apiBaseUrl here ***
+            const res = await fetch(`${apiBaseUrl}/subscription-status`, { headers: { 'Authorization': `Bearer ${userToken}` } });
+            const data = await res.json();
+            
+            billingButton.disabled = false;
+
+            if (data.is_pro) {
+                subStatusEl.textContent = 'Pro Plan';
+                subStatusEl.classList.add('text-green-400');
+                billingButton.textContent = 'Manage Subscription';
+                
+                billingButton.addEventListener('click', async () => {
+                    messageEl.textContent = 'Redirecting to billing portal...';
+                    billingButton.disabled = true;
+                    try {
+                        // *** Use apiBaseUrl here ***
+                        const response = await fetch(`${apiBaseUrl}/create-customer-portal-session`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${userToken}` }
+                        });
+                        if (!response.ok) throw new Error('Could not create portal session.');
+                        const { url } = await response.json();
+                        window.location.href = url;
+                    } catch (err) {
+                        messageEl.textContent = `Error: ${err.message}`;
+                        billingButton.disabled = false;
+                    }
+                });
+            } else {
+                subStatusEl.textContent = 'Free Plan';
+                subStatusEl.classList.add('text-gray-400');
+                billingButton.textContent = 'Upgrade to Pro';
+                
+                billingButton.addEventListener('click', () => {
+                    window.location.href = '/pricing.html';
+                });
+            }
+        }
+        
+        logoutButton.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = '/'; });
+    </script>
+</body>
+</html>

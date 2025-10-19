@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Library - Cogmatiq</title>
+    <meta name="description" content="Access and manage your document library on Cogmatiq. Organize and delete uploaded files for your AI knowledge bases.">
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#1A2533">
+    <meta name="theme-color" content="#1A2533">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <script>
+        // --- START: Environment Detection ---
+        let apiBaseUrl;
+        // *** Verify/Update these hostnames if yours are different ***
+        const stagingHostname = 'staging.cogmatiq.com'; 
+        const productionHostname = 'cogmatiq.com';      
+        const currentHostname = window.location.hostname;
+
+        if (currentHostname === stagingHostname || currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+          // Use staging API for staging domain or local development
+          apiBaseUrl = 'https://cogmatiq-api-staging-xdw7ikkfbq-uc.a.run.app'; 
+          console.log('Environment: Staging | API:', apiBaseUrl); 
+        } else {
+          // Default to production API for any other hostname (like cogmatiq.com)
+          apiBaseUrl = 'https://cogmatiq-api-6wh3xe6bsa-uc.a.run.app'; 
+          console.log('Environment: Production | API:', apiBaseUrl);
+        }
+        // --- END: Environment Detection ---
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body { font-family: 'Manrope', sans-serif; background-color: #1A2533; color: #E5E7EB; }
+        .accent-text { color: #00B5AD; }
+        .accent-bg { background-color: #00B5AD; }
+        .accent-bg:hover { background-color: #009A94; }
+        .section-padding { padding: 5rem 2rem; }
+        @media (min-width: 768px) { .section-padding { padding: 7rem 3rem; } }
+        .animate-fade-in { animation: fadeIn 1s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .bg-gradient-dark { background: linear-gradient(to bottom, #1A2533, #111827); }
+        .hover-scale { transition: transform 0.3s ease; }
+        .hover-scale:hover { transform: scale(1.05); }
+        .card { background: #1F2A44; border: 1px solid #2D3748; }
+    </style>
+</head>
+<body class="w-full">
+
+    <header class="py-6 px-8 flex justify-between items-center bg-gray-900/70 backdrop-blur-md fixed w-full top-0 z-10 shadow-sm">
+        <a href="/dashboard.html" class="flex items-center gap-3 transition-opacity hover:opacity-90">
+            <svg class="w-8 h-8 accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.4-8.4h-1m-16 0H3m15.55-5.55l-.71-.71M6.16 17.84l-.71-.71m12.39-.71l-.71.71M6.16 6.16l-.71.71M12 5a7 7 0 100 14 7 7 0 000-14z"></path></svg>
+            <span class="text-2xl font-bold text-white">Cogmatiq</span>
+        </a>
+        <div class="flex items-center gap-6">
+            <div id="nav-links-container" class="flex items-center gap-6">
+                 </div>
+            <a href="/dashboard.html" class="text-gray-400 font-medium hover:text-white transition-colors text-sm">Back to Dashboard</a>
+            <button id="logout-button" class="text-gray-400 font-medium hover:text-white transition-colors text-sm">Sign Out</button>
+        </div>
+    </header>
+
+    <main class="section-padding pt-24 animate-fade-in">
+        <div class="max-w-5xl mx-auto">
+            <h1 class="text-3xl md:text-4xl font-bold mb-8">Document Library</h1>
+            
+            <div id="library-list" class="space-y-4">
+                <p id="loading-text" class="text-gray-400 text-center">Loading your documents...</p>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        // *** Ensure apiBaseUrl is defined globally by the script in <head> ***
+        const supabaseUrl = 'https://wzekdxvvynpvisbvkiqg.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZWtkeHZ2eW5wdmlzYnZraXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NzA5NzAsImV4cCI6MjA3NjA0Njk3MH0.CGXF6Txv-OATQdaus08GohMHRyytye59hqaD0Q4BOSU';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
+        
+        const libraryList = document.getElementById('library-list');
+        const loadingText = document.getElementById('loading-text');
+        const logoutButton = document.getElementById('logout-button');
+        const navLinksContainer = document.getElementById('nav-links-container'); 
+
+        let userToken = null;
+
+        async function main() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                userToken = session.access_token;
+                fetchInitialData(); 
+            } else {
+                window.location.href = '/login.html';
+            }
+             supabaseClient.auth.onAuthStateChange((_event, session) => { // Added listener
+                if (!session) {
+                    window.location.href = '/'; 
+                } else {
+                    userToken = session.access_token; // Keep token updated
+                }
+            });
+        }
+        main();
+
+        async function fetchInitialData() {
+            if (!userToken) return;
+            loadingText.classList.remove('hidden');
+            loadingText.textContent = 'Loading your data...';
+            libraryList.innerHTML = ''; // Clear previous list
+            
+            try {
+                // *** Use apiBaseUrl in fetch calls ***
+                const [docsRes, subRes] = await Promise.all([
+                    fetch(`${apiBaseUrl}/documents`, { headers: { 'Authorization': `Bearer ${userToken}` } }),
+                    fetch(`${apiBaseUrl}/subscription-status`, { headers: { 'Authorization': `Bearer ${userToken}` } })
+                ]);
+
+                if (!docsRes.ok || !subRes.ok) {
+                    throw new Error('Failed to load library data.');
+                }
+
+                const documents = await docsRes.json();
+                const subStatus = await subRes.json();
+                
+                renderSubscriptionStatus(subStatus.is_pro);
+                renderLibraryList(documents);
+
+            } catch (error) {
+                console.error("Fetch Library Data Error:", error);
+                loadingText.textContent = `Error loading library: ${error.message}`;
+            }
+        }
+
+        function renderSubscriptionStatus(isPro) {
+            if (isPro) {
+                navLinksContainer.innerHTML = `
+                    <span class="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/50">
+                        Pro Plan
+                    </span>
+                `;
+            } else {
+                navLinksContainer.innerHTML = `
+                    <span class="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-gray-600/20 text-gray-400 border border-gray-600/50">
+                        Free Plan
+                    </span>
+                    <a href="/pricing.html" class="accent-bg text-white font-semibold py-2 px-4 rounded-md text-sm hover-scale">
+                        Upgrade to Pro
+                    </a>
+                `;
+            }
+        }
+
+        function renderLibraryList(documents) {
+            loadingText.classList.add('hidden');
+            libraryList.innerHTML = ''; // Clear again
+            if (!documents || documents.length === 0) {
+                libraryList.innerHTML = '<p class="text-gray-400 text-center py-8">Your library is empty. Go to your dashboard to upload a document.</p>';
+                return;
+            }
+            documents.forEach(doc => {
+                let statusIndicator = '';
+                 if (doc.status === 'processing') {
+                    statusIndicator = `<span class="text-xs text-yellow-400 ml-2">(Processing...)</span>`;
+                 } else if (doc.status === 'error') {
+                     statusIndicator = `<span class="text-xs text-red-400 ml-2">(Error)</span>`;
+                 }
+
+                const docElement = document.createElement('div');
+                // Added group class for hover effect on button
+                docElement.className = 'card p-4 rounded-lg flex justify-between items-center hover:shadow-lg transition-shadow group'; 
+                docElement.innerHTML = `
+                    <div>
+                        <p class="font-semibold text-white">${doc.file_name}${statusIndicator}</p>
+                        <p class="text-xs text-gray-400">Uploaded: ${new Date(doc.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <button onclick="deleteDocument('${doc.id}')" class="text-red-400 hover:text-red-300 transition-colors opacity-0 group-hover:opacity-100">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>
+                    </button>
+                `;
+                libraryList.appendChild(docElement);
+            });
+        }
+        
+        async function deleteDocument(docId) {
+            if (!userToken) return;
+             if (confirm('Are you sure you want to permanently delete this document?\n\nThis action cannot be undone and will remove the document from ALL your Cortices.')) {
+                try {
+                     // *** Use apiBaseUrl here ***
+                    const response = await fetch(`${apiBaseUrl}/documents/${docId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${userToken}` }
+                    });
+                     if (!response.ok) {
+                        const errorData = await response.json().catch(()=> ({detail: 'Failed to delete document.'}));
+                        throw new Error(errorData.detail);
+                    }
+                     console.log(`Document ${docId} deleted successfully.`);
+                    fetchInitialData(); // Re-fetch all data to refresh the list
+                } catch (error) {
+                    console.error("Delete Document Error:", error);
+                    alert(`Error deleting document: ${error.message}`);
+                }
+            }
+        }
+
+        logoutButton.addEventListener('click', async () => { 
+            await supabaseClient.auth.signOut(); 
+             // Redirect is handled by onAuthStateChange listener
+        });
+    </script>
+</body>
+</html>
